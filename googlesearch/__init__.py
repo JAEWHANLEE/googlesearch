@@ -1,6 +1,28 @@
-from requests import get
+import requests 
 from bs4 import BeautifulSoup
 import pandas as pd
+from stem import Signal
+from stem.control import Controller
+import json
+
+def get_tor_session():
+    session = requests.session()
+    # Tor uses the 9050 port as the default socks port
+    session.proxies = {'http':  'socks5://127.0.0.1:9150',
+                       'https': 'socks5://127.0.0.1:9150'}
+    tor_IP = json.loads(session.get("http://httpbin.org/ip").text)['origin']
+    print('Tor Session is opend on %s'%tor_IP)
+    return session
+
+# signal TOR for a new connection 
+def renew_connection():
+    frm_IP = json.loads(get_tor_session().get("http://httpbin.org/ip").text)['origin']
+    with Controller.from_port(port = 9151) as controller:
+        controller.authenticate(password="password")
+        controller.signal(Signal.NEWNYM)
+    tto_IP = json.loads(get_tor_session().get("http://httpbin.org/ip").text)['origin']
+    print('IP is changed from %s -> %s'%(frm_IP, tto_IP) )
+
 
 class gSearch(object):
     """docstring for gSearch"""
@@ -22,6 +44,11 @@ class gSearch(object):
         self.usr_agent = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
                       'Chrome/61.0.3163.100 Safari/537.36'}
 
+        try:
+            self.proxies = arg['proxy']
+        except:
+            self.proxies = None
+
         self.get_base_url()
 
     def get_base_url(self):
@@ -40,7 +67,14 @@ class gSearch(object):
 
         google_url = self.base_url.format(escaped_search_term, self.num_results+1,self.lang)
         #print(google_url)
-        response = get(google_url, headers=self.usr_agent)
+        if self.proxies == None:
+            response = request.get(google_url, headers=self.usr_agent)
+        else:
+            print('Use Proxy')
+            renew_connection()
+            session = get_tor_session()
+            response = session.get(google_url)
+
         response.raise_for_status()
 
         return response.text
@@ -104,11 +138,16 @@ if __name__ == '__main__':
     rtn = search('Google', num_results = 30)
     print(rtn)
     #"""
+
+    session = get_tor_session()
+    renew_connection()
+
     conditions = {
         'num_results': 100,
         'lang': 'en',
         'cate': 'news',
+        'proxy': True,
     }
     gs = gSearch(conditions)
-    out = gs.search('Google')
+    out = gs.search('naver')
     print(out)
