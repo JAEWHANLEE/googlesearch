@@ -252,10 +252,13 @@ class gSearch(object):
 
     def search(self, term, outform='df'):
         # to avoid captch every fetch will be done fake header
-        header = Headers(os="random_os", headers=True).generate()
+        header = Headers(os="windows", headers=True).generate()
         random_header = header_tune(self.headers_base, header)
         random_header = header
-
+        try:
+            renew_connection()
+        except:
+            pass
         # search API generate
         search_url = self.url_generator(term)
 
@@ -299,5 +302,5 @@ if __name__ == '__main__':
         'chnl': 'gck'
     }
     gs = gSearch(conditions, bln_main=True)
-    out = gs.search('ANA')
+    out = gs.search('JAL')
     print(out)
