@@ -177,17 +177,18 @@ class gSearch(object):
     def marionette(self, google_url, header):
         # if google cut the IP, you can try firefox marionette mote
         if self.driver == None:
-                #try:
+            try:
                 rtn_drvr = driver.Firefox(executable_path = exec_path)
-                profile = driver.FirefoxProfile()
-                profile.set_preference("network.proxy.type", 1)
-                profile.set_preference("network.proxy.socks", '127.0.0.1')
-                profile.set_preference("network.proxy.socks_port", 9150)
-                profile.set_preference("network.proxy.socks_remote_dns", False)
-                profile.update_preferences()
-                #except:
-                #rtn_drvr = driver.Firefox()
-                self.driver = rtn_drvr
+            except:
+                rtn_drvr = driver.Firefox()
+
+            profile = driver.FirefoxProfile()
+            profile.set_preference("network.proxy.type", 1)
+            profile.set_preference("network.proxy.socks", '127.0.0.1')
+            profile.set_preference("network.proxy.socks_port", 9150)
+            profile.set_preference("network.proxy.socks_remote_dns", False)
+            profile.update_preferences()
+            self.driver = rtn_drvr
 
 
         self.driver.get(google_url)
@@ -202,7 +203,7 @@ class gSearch(object):
         else:
             if self.bln_main:
                 print('Use Proxy')
-                renew_connection()
+            renew_connection()
             session = get_tor_session(headers)
             if self.bln_main:
                 print(session.headers)
@@ -299,7 +300,7 @@ if __name__ == '__main__':
         'num_results': 100,
         'lang': 'en',
         'cate': 'news',
-        'chnl': 'gck'
+        'chnl': 'tor'
     }
     gs = gSearch(conditions, bln_main=True)
     out = gs.search('JAL')
