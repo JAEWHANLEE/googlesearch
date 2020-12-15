@@ -37,8 +37,7 @@ class SearchReq(object):
     SEARCH_CAT = {'all':'', 'news':'nws', 'image':'isch', 'video':'vid', }
 
     """docstring for SearchReq"""
-    def __init__(self, hl='en-US', lr=None, timeout=(10,30)
-                , proxies_itr=[], retries=0, backoff_factor=0, requests_args=None):
+    def __init__(self, hl='en-US', lr=None, timeout=(10,30), proxies_itr=[], retries=0, backoff_factor=0, requests_args=None):
         """
         hl will be used in token
         """
@@ -57,7 +56,6 @@ class SearchReq(object):
         # Web Auth
         self.requests_args = requests_args or {}
         self.cookies = self.GetGoogleCookie()
-
 
     def GetGoogleCookie(self):
         """
@@ -84,16 +82,7 @@ class SearchReq(object):
                     raise
                 continue
 
-    def GetNewProxy(self):
-        """
-        Increment proxy INDEX; zero on overflow
-        """
-        if self.proxy_index < (len(self.proxies) - 1):
-            self.proxy_index += 1
-        else:
-            self.proxy_index = 0
-
-    def build_payload(self, kywd, num=100, hl='', lr='', category='all'):
+    def build_payload(self, kywd, num=100, hl='', lr='', daterange='', category='all'):
         """Create the payload for related queries, interest over time and interest by region"""
         self.token_payload = SearchReq.PARAMS_SET
         self.token_payload['hl'] = self.hl[:2]
@@ -104,42 +93,20 @@ class SearchReq(object):
             self.token_payload['q'] = '+'.join(kywd)
         else:
             self.token_payload['q'] = kywd
-
-        print(self.token_payload)
-        
+        if isinstance(daterange, (tuple,list)):
+            self.token_payload['tbs'] = ','.join(['tbs=crd:1','cd_min: {}'.format(min(daterange).strftime('%m/%d/%Y')), 'cd_min: {}'.format(max(daterange).strftime('%m/%d/%Y'))])
+       
         # get tokens
-        self._tokens()
-        return
+        rslt = self._tokens()
+        return rslt
 
     def _tokens(self):
         """Makes request to Google to get API tokens for interest over time, interest by region and related queries"""
         # make the request and parse the returned json
-        widget_dict = self._get_data(
-            url=SearchReq.SEARCH_URL,
-            method=SearchReq.GET_METHOD,
-            params=self.token_payload,
-            trim_chars=0,
-        )['widgets']
-        # order of the json matters...
-        first_region_token = True
-        # clear self.related_queries_widget_list and self.related_topics_widget_list
-        # of old keywords'widgets
-        self.related_queries_widget_list[:] = []
-        self.related_topics_widget_list[:] = []
-        # assign requests
-        for widget in widget_dict:
-            if widget['id'] == 'TIMESERIES':
-                self.interest_over_time_widget = widget
-            if widget['id'] == 'GEO_MAP' and first_region_token:
-                self.interest_by_region_widget = widget
-                first_region_token = False
-            # response for each term, put into a list
-            if 'RELATED_TOPICS' in widget['id']:
-                self.related_topics_widget_list.append(widget)
-            if 'RELATED_QUERIES' in widget['id']:
-                self.related_queries_widget_list.append(widget)
-        return
+        rtn_src = self._get_data(url=SearchReq.SEARCH_URL,method=SearchReq.GET_METHOD,
+            params=self.token_payload,trim_chars=0,)
 
+        return rtn_src
 
     def _get_data(self, url, method=GET_METHOD, trim_chars=0, **kwargs):
         """Send a request to Google and return the JSON response as a Python object
@@ -171,24 +138,18 @@ class SearchReq(object):
         else:
             response = s.get(url, timeout=self.timeout, cookies=self.cookies,
                              **kwargs, **self.requests_args)   # DO NOT USE retries or backoff_factor here
-        print(url)
-        print(response.text)
-        raise
+
+
+        # only for google search crowling, It doesn't matter what response form
         # check if the response contains json and throw an exception otherwise
-        # Google mostly sends 'application/json' in the Content-Type header,
-        # but occasionally it sends 'application/javascript
-        # and sometimes even 'text/javascript
-        if response.status_code == 200 and 'application/json' in \
-                response.headers['Content-Type'] or \
-                'application/javascript' in response.headers['Content-Type'] or \
-                'text/javascript' in response.headers['Content-Type']:
+        # Code 200 means success
+        if response.status_code == 200:
             # trim initial characters
             # some responses start with garbage characters, like ")]}',"
             # these have to be cleaned before being passed to the json parser
             content = response.text[trim_chars:]
-            # parse json
-            self.GetNewProxy()
-            return json.loads(content)
+
+            return content
         else:
             # error
             raise exceptions.ResponseError(
@@ -199,8 +160,14 @@ class SearchReq(object):
 
 
 if __name__ == '__main__':
+    strt_date = datetime.strptime('20131110','%Y%m%d')
+    tmnt_date = datetime.strptime('20151110','%Y%m%d')
+    
     SR = SearchReq()
-    SR.build_payload('jhlee@korea.ac.kr')
+
+    out = SR.build_payload(kywd = '한진물류연구원', hl='ko-KR',daterange=[strt_date, tmnt_date])
+    print(out)
+    #build_payload(self, kywd, num=100, hl='', lr='', daterange='', category='all')
 """
 
   https://www.google.com/search?q=대한항공 
