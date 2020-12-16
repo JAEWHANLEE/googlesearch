@@ -116,9 +116,9 @@ class SearchReq(object):
         self.token_payload['num'] = num + 1
         self.token_payload['tbm'] = SearchReq.SEARCH_CAT[category]
         if isinstance(kywd, (list, tuple)):
-            self.token_payload['q'] = '+'.join(kywd)
+            self.token_payload['q'] = '+'.join(['"{}"'.format(x).replace(' ','+') for x in kywd])
         else:
-            self.token_payload['q'] = kywd
+            self.token_payload['q'] = kywd.replace(' ','+')
         if isinstance(daterange, (tuple,list)):
             self.token_payload['tbs'] = ','.join(['tbs=crd:1','cd_min: {}'.format(min(daterange).strftime('%m/%d/%Y')), 'cd_min: {}'.format(max(daterange).strftime('%m/%d/%Y'))])
        
