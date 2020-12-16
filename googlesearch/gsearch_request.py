@@ -25,6 +25,15 @@ else:  # Python 3
 import requests_random_user_agent
 from fake_headers import Headers
 
+from bs4 import BeautifulSoup
+import pandas as pd
+import time
+import platform as pltfrm
+import os, sys
+import re
+
+
+
 class SearchReq(object):
     """
     Google Search API
@@ -52,10 +61,25 @@ class SearchReq(object):
         self.retries = retries
         self.backoff_factor = backoff_factor
         # Internal Parameters
-        self.proxy_idx = 0
+        self.proxy_index = 0
         # Web Auth
         self.requests_args = requests_args or {}
         self.cookies = self.GetGoogleCookie()
+
+        self.category = None
+
+
+    def status(self):
+        print('----------------------  SearchReq STATUS  ----------------------')
+        print('hl:',self.hl)
+        print('lr:',self.lr)
+        print('timeout:',self.timeout)
+        print('proxies:',self.proxies)
+        print('retries:',self.retries)
+        print('backoff_factor:',self.backoff_factor)
+        print('proxy_index:',self.proxy_index)
+        print('requests_args:',self.requests_args)
+        print('================================================================')
 
     def GetGoogleCookie(self):
         """
@@ -64,7 +88,7 @@ class SearchReq(object):
         """
         while True:
             if len(self.proxies) > 0:
-                proxy = {'https': self.proxies[self.proxy_index]}
+                proxy = {'http': self.proxies[self.proxy_index]}
             else:
                 proxy = ''
             try:
@@ -82,7 +106,9 @@ class SearchReq(object):
                     raise
                 continue
 
-    def build_payload(self, kywd, num=100, hl='', lr='', daterange='', category='all'):
+    def searching(self, kywd, num=100, hl='', lr='', daterange='', category='all'):
+        # update category
+        self.category = category
         """Create the payload for related queries, interest over time and interest by region"""
         self.token_payload = SearchReq.PARAMS_SET
         self.token_payload['hl'] = self.hl[:2]
@@ -98,7 +124,10 @@ class SearchReq(object):
        
         # get tokens
         rslt = self._tokens()
-        return rslt
+
+        # parcing 
+        parced_rslt = list(self.parse_results(rslt))
+        return parced_rslt
 
     def _tokens(self):
         """Makes request to Google to get API tokens for interest over time, interest by region and related queries"""
@@ -117,7 +146,7 @@ class SearchReq(object):
         :param kwargs: any extra key arguments passed to the request builder (usually query parameters or data)
         :return:
         """
-        usragt = Headers(os="random_os", headers=True).generate()['User-Agent']
+        usragt = Headers(os="windows", headers=False).generate()['User-Agent']
 
 
         s = requests.session()
@@ -131,7 +160,7 @@ class SearchReq(object):
 
         if len(self.proxies) > 0:
             self.cookies = self.GetGoogleCookie()
-            s.proxies.update({'https': self.proxies[self.proxy_index]})
+            s.proxies.update({'http': self.proxies[self.proxy_index]})
         if method == SearchReq.POST_METHOD:
             response = s.post(url, timeout=self.timeout,
                               cookies=self.cookies, **kwargs, **self.requests_args)  # DO NOT USE retries or backoff_factor here
@@ -158,16 +187,51 @@ class SearchReq(object):
                 response=response)
 
 
+    def parse_results(self, raw_html):
+        soup = BeautifulSoup(raw_html, 'html.parser')
+        if self.category == 'all':
+            result_block = soup.find_all('div', attrs={'class': 'g'})
+            for result in result_block:
+                #print(result)
+                link = result.find('a', href=True)
+                title = result.find('h3')
+                desc = result.find('span', attrs={'class': 'aCOpRe'})
+                if self.bln_main:
+                    print('>>link<<',link)
+                    print('>>title<<',title)
+                    print('>>desc<<',desc)
+                #raise
+                if link and title and desc:
+                    print(title.text, desc.text, link['href'])
+                    yield [title.text, desc.text, link['href']]
+        elif self.category =='news':
+            result_block = soup.find_all('g-card')
+            for result in result_block:
+                link = result.find('a', href=True)
+                title = result.find('div', attrs={'class': re.compile('JheGif *')})
+                desc = result.find('div', attrs={'class': 'Y3v8qd'})
+                src = result.find('div', attrs={'class': 'XTjFC WF4CUc'})
+                rel = result.find('span', attrs={'class': 'WG9SHc'})
+
+
+                if link and title and desc:
+                    #print('-----------------------------------------------')
+                    #print(title.text, desc.text, link['href'], src.text)
+                    #raise
+                    yield [title.text, desc.text, src.text, link['href'], rel.text]
+
+
+
 
 if __name__ == '__main__':
-    strt_date = datetime.strptime('20131110','%Y%m%d')
-    tmnt_date = datetime.strptime('20151110','%Y%m%d')
+    strt_date = datetime.strptime('20191201','%Y%m%d')
+    tmnt_date = datetime.strptime('20201216','%Y%m%d')
     
     SR = SearchReq()
 
-    out = SR.build_payload(kywd = '한진물류연구원', hl='ko-KR',daterange=[strt_date, tmnt_date])
+    out = SR.searching(kywd = 'CJ대한통운', hl='ko-KR',daterange=[strt_date, tmnt_date], category = 'news')
     print(out)
-    #build_payload(self, kywd, num=100, hl='', lr='', daterange='', category='all')
+    #searching(self, kywd, num=100, hl='', lr='', daterange='', category='all')
 """
 
   https://www.google.com/search?q=대한항공 
